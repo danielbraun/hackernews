@@ -2,6 +2,7 @@
 window.HN = window.HN || {};
 window.HN.views = (function(Marionete, _, resources) {
     "use strict";
+
     var TableView = Marionete.CompositeView.extend({
             template: _.template("<tbody></tbody"),
             tagName: "table",
@@ -20,28 +21,47 @@ window.HN.views = (function(Marionete, _, resources) {
                     index: this.model.collection.indexOf(this.model) + 1
                 };
             }
+        }),
+        StoryListView = TableView.extend({
+            childView: StoryRowView
         });
 
+    function fetchResource(Resource) {
+        return new Resource().fetch({
+            cache: true
+        });
+    }
+
+    function collectionView(View, collection) {
+        return new View({
+            collection: collection
+        });
+    }
 
     return {
         AppView: Marionete.LayoutView.extend({
             initialize: function() {
-                _.bindAll(this, "showTopStories");
+                _.bindAll(this, "showTopStories", "showView");
             },
             template: "#appview_template",
             regions: {
                 contents: "#contents"
             },
-            onRender: function() {
-                new resources.TopStories().fetch({
-                    cache: true
-                }).then(this.showTopStories);
+            events: {
+                "click #new_stories": "showNewStories",
+                "click #top_stories": "showTopStories"
             },
-            showTopStories: function(collection) {
-                this.contents.show(new TableView({
-                    childView: StoryRowView,
-                    collection: collection
-                }));
+            onRender: function() {
+                this.showTopStories();
+            },
+            showView: function(view) {
+                this.contents.show(view);
+            },
+            showTopStories: function() {
+                fetchResource(resources.TopStories).then(_.compose(this.showView, _.partial(collectionView, StoryListView)));
+            },
+            showNewStories: function() {
+                fetchResource(resources.NewStories).then(_.compose(this.showView, _.partial(collectionView, StoryListView)));
             }
         })
     };
