@@ -1,9 +1,9 @@
 /*global window*/
 window.HN = window.HN || {};
-window.HN.views = (function(Marionete, _, resources) {
+window.HN.views = (function(Backbone, Marionette, _, resources) {
     "use strict";
 
-    var TableView = Marionete.CompositeView.extend({
+    var TableView = Marionette.CompositeView.extend({
             template: _.template("<tbody></tbody"),
             tagName: "table",
             attributes: {
@@ -13,7 +13,7 @@ window.HN.views = (function(Marionete, _, resources) {
             },
             childViewContainer: "tbody"
         }),
-        StoryRowView = Marionete.ItemView.extend({
+        StoryRowView = Marionette.ItemView.extend({
             template: "#story_template",
             tagName: "tbody",
             templateHelpers: function() {
@@ -32,37 +32,83 @@ window.HN.views = (function(Marionete, _, resources) {
         });
     }
 
-    function collectionView(View, collection) {
-        return new View({
+    var navigate = Backbone.history.navigate.bind(Backbone.history);
+
+    var CommentView = Marionette.ItemView.extend({
+        tagName: "tr",
+        template: "#commentview_template"
+    });
+
+    var StoryCommentsView = Marionette.CompositeView.extend({
+        template: "#storyview_template",
+        childViewContainer: "#comments",
+        childView: CommentView
+    });
+
+    var UserView = Marionette.ItemView.extend({
+        template: "#userview_template"
+    });
+
+    function storyListView(collection) {
+        return new StoryListView({
             collection: collection
         });
     }
 
+    function userView(model) {
+        return new UserView({
+            model: model
+        });
+    }
+
+    function storyCommentsView(model) {
+        return new StoryCommentsView({
+            model: model,
+            collection: new Backbone.Collection(model.get("children"), {
+                model: resources.Comment
+            })
+        });
+    }
+
     return {
-        AppView: Marionete.LayoutView.extend({
+        AppView: Marionette.LayoutView.extend({
             initialize: function() {
-                _.bindAll(this, "showTopStories", "showView");
+                _.bindAll(this, "showView");
             },
             template: "#appview_template",
             regions: {
                 contents: "#contents"
             },
             events: {
-                "click #new_stories": "showNewStories",
-                "click #top_stories": "showTopStories"
+                "click #new_stories": function() {
+                    fetchResource(resources.NewStories).then(_.compose(this.showView, storyListView));
+                },
+                "click #top_stories": function() {
+                    fetchResource(resources.TopStories).then(_.compose(this.showView, storyListView));
+                },
+                "click #author": function(event) {
+                    new resources.User({
+                        id: event.target.dataset.id
+                    }).fetch().then(_.compose(this.showView, userView));
+                },
+                "click #story": function(event) {
+                    new resources.Story({
+                        id: event.target.dataset.id
+                    }).fetch().then(_.compose(this.showView, storyCommentsView));
+                },
+                "click #show_hn": function() {
+                    fetchResource(resources.ShowHNStories).then(_.compose(this.showView, storyListView));
+                },
+                "click #ask_hn": function() {
+                    fetchResource(resources.AskHNStories).then(_.compose(this.showView, storyListView));
+                }
             },
             onRender: function() {
-                this.showTopStories();
+                this.$("#top_stories").click();
             },
             showView: function(view) {
                 this.contents.show(view);
-            },
-            showTopStories: function() {
-                fetchResource(resources.TopStories).then(_.compose(this.showView, _.partial(collectionView, StoryListView)));
-            },
-            showNewStories: function() {
-                fetchResource(resources.NewStories).then(_.compose(this.showView, _.partial(collectionView, StoryListView)));
             }
         })
     };
-}(window.Marionette, window._, window.HN.resources));
+}(window.Backbone, window.Marionette, window._, window.HN.resources));
